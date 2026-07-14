@@ -29,9 +29,9 @@ public class PerformanceCalculator : IPerformanceCalculator
 
             decimal investedAmount = position.Quantity * position.AveragePrice;
             decimal positionCurrentValue = position.Quantity * currentPrice;
-            
-            decimal positionReturn = investedAmount > 0 
-                ? (positionCurrentValue - investedAmount) / investedAmount * 100 
+
+            decimal positionReturn = investedAmount > 0
+                ? (positionCurrentValue - investedAmount) / investedAmount * 100
                 : 0;
 
             currentValue += positionCurrentValue;
@@ -55,8 +55,8 @@ public class PerformanceCalculator : IPerformanceCalculator
         }
 
         decimal totalReturnAmount = currentValue - totalInvestment;
-        decimal totalReturnPercent = totalInvestment > 0 
-            ? totalReturnAmount / totalInvestment * 100 
+        decimal totalReturnPercent = totalInvestment > 0
+            ? totalReturnAmount / totalInvestment * 100
             : 0;
 
         decimal? annualizedReturn = CalculateAnnualizedReturn(portfolio, totalReturnPercent);
@@ -77,35 +77,43 @@ public class PerformanceCalculator : IPerformanceCalculator
 
     private decimal? CalculateAnnualizedReturn(Portfolio portfolio, decimal totalReturnPercent)
     {
-        var creationDate = portfolio.Positions.Any() ? DateTime.Parse("2024-10-06T10:30:00Z") : DateTime.UtcNow;
-        
+        // Se o portfólio não possuir posições, não faz sentido calcular retorno anualizado
+        if (portfolio == null || portfolio.Positions == null || !portfolio.Positions.Any())
+            return null;
+
+        var creationDate = DateTime.Parse("2024-10-06T10:30:00Z");
         var portfolioCreatedAt = DateTime.Parse("2024-01-15T09:00:00Z");
-        
+
         double days = (creationDate - portfolioCreatedAt).TotalDays;
-        
+
         if (days <= 0) return null;
 
         double totalReturnDecimal = (double)(totalReturnPercent / 100);
-        
+
         double annualized = (Math.Pow(1 + totalReturnDecimal, 365.0 / days) - 1) * 100;
-        
+
         return (decimal)annualized;
     }
 
     private decimal? CalculatePortfolioVolatility(
-        Portfolio portfolio, 
-        List<PositionPerformanceDto> positions, 
+        Portfolio portfolio,
+        List<PositionPerformanceDto> positions,
         decimal totalPortfolioValue)
     {
         if (totalPortfolioValue <= 0) return null;
 
         var assetVolatilities = new List<(decimal Weight, List<decimal> DailyReturns)>();
 
+        var normalizedHistory = _context.PriceHistory
+            .ToDictionary(k => k.Key.ToUpperInvariant(), v => v.Value);
+
         foreach (var pos in positions)
         {
-            if (!_context.PriceHistory.TryGetValue(pos.Symbol, out var history) || history.Count < 2)
+            var symbolUpper = pos.Symbol.ToUpperInvariant();
+
+            if (!normalizedHistory.TryGetValue(symbolUpper, out var history) || history.Count < 2)
             {
-                return null; 
+                return null;
             }
 
             var sortedHistory = history.OrderBy(h => h.Date).ToList();

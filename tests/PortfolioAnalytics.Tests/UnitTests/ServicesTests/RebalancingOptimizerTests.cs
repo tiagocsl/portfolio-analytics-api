@@ -67,6 +67,70 @@ public class RebalancingOptimizerTests
         Assert.Equal(0m, allocation.Deviation);
     }
 
+    [Fact]
+    public void MockDataContext_SelicRate_ShouldBeCovered()
+    {
+        var mock = new MockDataContext();
+        Assert.Equal(10.75m, mock.SelicRate);
+    }
+
+    [Fact]
+    public void Optimize_ShouldThrowArgumentNullException_WhenPortfolioIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => _optimizer.Optimize(null!));
+    }
+
+    [Fact]
+    public void Optimize_ShouldSkipPosition_WhenAssetDoesNotExistInContext()
+    {
+        var mockContext = new MockDataContext();
+
+        var portfolio = new Portfolio
+        {
+            Id = "test-missing-asset-rebalancing",
+            UserId = "user-missing-rebalancing",
+            TotalInvestment = 1000m,
+            Positions = new List<Position>
+            {
+                new Position { AssetSymbol = "NON_EXISTENT", Quantity = 10, AveragePrice = 100m, TargetAllocation = 1.0m }
+            }
+        };
+
+        var optimizerWithMock = new RebalancingOptimizer(mockContext);
+
+        var result = optimizerWithMock.Optimize(portfolio);
+
+        Assert.Equal(0m, result.TotalValue);
+        Assert.Empty(result.CurrentVsTargetAllocation);
+        Assert.Empty(result.Instructions);
+    }
+
+    [Fact]
+    public void Optimize_ShouldReturnEmptyResponse_WhenTotalValueIsZeroOrNegative()
+    {
+        var mockContext = new MockDataContext();
+        mockContext.Assets.Add(new Asset { Symbol = "FREE_ASSET", CurrentPrice = 0m });
+
+        var portfolio = new Portfolio
+        {
+            Id = "zero-value",
+            UserId = "user-zero-value",
+            TotalInvestment = 1000m,
+            Positions = new List<Position>
+            {
+                new Position { AssetSymbol = "FREE_ASSET", Quantity = 10, AveragePrice = 100m, TargetAllocation = 1.0m }
+            }
+        };
+
+        var optimizerWithMock = new RebalancingOptimizer(mockContext);
+
+        var result = optimizerWithMock.Optimize(portfolio);
+
+        Assert.Equal(0m, result.TotalValue);
+        Assert.Empty(result.CurrentVsTargetAllocation);
+        Assert.Empty(result.Instructions);
+    }
+
     private class MockDataContext : IDataContext
     {
         public List<Asset> Assets { get; } = new();

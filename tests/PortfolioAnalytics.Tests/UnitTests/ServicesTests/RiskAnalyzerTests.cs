@@ -28,10 +28,10 @@ public class RiskAnalyzerTests
         var result = _analyzer.Analyze(portfolio);
 
         Assert.NotNull(result);
-        
+
         Assert.True(result.SectorExposure.Count > 0);
         Assert.True(result.TypeExposure.Count > 0);
-        
+
         var totalSectorExposure = result.SectorExposure.Sum(s => s.ExposurePercentage);
         Assert.InRange(totalSectorExposure, 99.9m, 100.1m);
     }
@@ -64,6 +64,89 @@ public class RiskAnalyzerTests
         Assert.NotEmpty(result.Alerts);
         Assert.Contains(result.Alerts, a => a.Contains("SUPER_CONCENTRATED"));
     }
+
+    [Fact]
+    public void Analyze_ShouldThrowArgumentNullException_WhenPortfolioIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => _analyzer.Analyze(null!));
+    }
+
+    [Fact]
+    public void Analyze_ShouldReturnLowRiskAndWarning_WhenPortfolioIsEmptyOrHasZeroValue()
+    {
+        var mockContext = new MockDataContext();
+        var emptyPortfolio = new Portfolio
+        {
+            Id = "empty-risk",
+            UserId = "user-empty-risk",
+            TotalInvestment = 1000m,
+            Positions = new List<Position>()
+        };
+
+        var analyzerWithMock = new RiskAnalyzer(mockContext);
+
+        var result = analyzerWithMock.Analyze(emptyPortfolio);
+
+        Assert.Equal("LOW", result.RiskLevel);
+        Assert.Contains(result.Alerts, a => a.Contains("não possui posições ativas"));
+    }
+
+    [Fact]
+    public void Analyze_ShouldSkipPosition_WhenAssetDoesNotExistInContext()
+    {
+        var mockContext = new MockDataContext();
+        mockContext.Assets.Add(new Asset { Symbol = "EXISTING", Sector = "Tech", Type = "Stock", CurrentPrice = 100m });
+
+        var portfolio = new Portfolio
+        {
+            Id = "test-missing-asset",
+            UserId = "user-missing-asset",
+            TotalInvestment = 2000m,
+            Positions = new List<Position>
+            {
+                new Position { AssetSymbol = "EXISTING", Quantity = 10, AveragePrice = 100m },
+                new Position { AssetSymbol = "NON_EXISTING", Quantity = 10, AveragePrice = 100m }
+            }
+        };
+
+        var analyzerWithMock = new RiskAnalyzer(mockContext);
+
+        var result = analyzerWithMock.Analyze(portfolio);
+
+        Assert.Single(result.SectorExposure);
+        Assert.Equal(100m, result.SectorExposure.First().ExposurePercentage);
+    }
+
+    [Fact]
+    public void Analyze_ShouldReturnLowRisk_WhenPortfolioIsHighlyDiversified()
+    {
+        var mockContext = new MockDataContext();
+        var assets = new List<Asset>();
+        var positions = new List<Position>();
+
+        for (int i = 1; i <= 10; i++)
+        {
+            string symbol = $"A{i}";
+            mockContext.Assets.Add(new Asset { Symbol = symbol, Sector = $"Sector{i}", Type = "Stock", CurrentPrice = 100m });
+            positions.Add(new Position { AssetSymbol = symbol, Quantity = 1, AveragePrice = 100m });
+        }
+
+        var diversifiedPortfolio = new Portfolio
+        {
+            Id = "test-diversified",
+            UserId = "user-diversified",
+            TotalInvestment = 1000m,
+            Positions = positions
+        };
+
+        var analyzerWithMock = new RiskAnalyzer(mockContext);
+
+        var result = analyzerWithMock.Analyze(diversifiedPortfolio);
+
+        Assert.True(result.ConcentrationIndexHHI < 0.15);
+        Assert.Equal("LOW", result.RiskLevel);
+    }
+
 
     private class MockDataContext : IDataContext
     {
