@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using PortfolioAnalytics.API.Data;
 using PortfolioAnalytics.API.Services;
 using PortfolioAnalytics.API.Services.Interfaces;
@@ -14,17 +15,20 @@ public class PortfoliosController : ControllerBase
     private readonly IPerformanceCalculator _performanceCalculator;
     private readonly IRiskAnalyzer _riskAnalyzer;
     private readonly IRebalancingOptimizer _rebalancingOptimizer;
+    private readonly ILogger<PortfoliosController> _logger;
 
     public PortfoliosController(
         IDataContext context,
         IPerformanceCalculator performanceCalculator,
         IRiskAnalyzer riskAnalyzer,
-        IRebalancingOptimizer rebalancingOptimizer)
+        IRebalancingOptimizer rebalancingOptimizer,
+        ILogger<PortfoliosController> logger)
     {
         _context = context;
         _performanceCalculator = performanceCalculator;
         _riskAnalyzer = riskAnalyzer;
         _rebalancingOptimizer = rebalancingOptimizer;
+        _logger = logger;
     }
 
     /// <summary>
@@ -36,15 +40,25 @@ public class PortfoliosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public IActionResult GetPerformance(string id)
     {
+        _logger.LogDebug("GetPerformance request received for PortfolioId={PortfolioId}", id);
+
         // Procuramos o portfolio pelo ID (que mapeamos como o userId vindo do SeedData)
         var portfolio = _context.Portfolios.FirstOrDefault(p => p.Id == id || p.UserId == id);
         
         if (portfolio == null)
         {
+            _logger.LogWarning("Portfólio não encontrado para PortfolioId={PortfolioId}", id);
             return NotFound(new { message = $"Portfólio com o ID '{id}' não foi encontrado." });
         }
 
+        _logger.LogDebug(
+            "Portfólio encontrado: PortfolioId={PortfolioId}, UserId={UserId}, PositionCount={PositionCount}",
+            portfolio.Id,
+            portfolio.UserId,
+            portfolio.Positions?.Count ?? 0);
+
         var result = _performanceCalculator.Calculate(portfolio);
+        _logger.LogDebug("Performance calculada para PortfolioId={PortfolioId}", portfolio.Id);
         return Ok(result);
     }
 
@@ -57,14 +71,18 @@ public class PortfoliosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public IActionResult GetRiskAnalysis(string id)
     {
+        _logger.LogDebug("GetRiskAnalysis request received for PortfolioId={PortfolioId}", id);
+
         var portfolio = _context.Portfolios.FirstOrDefault(p => p.Id == id || p.UserId == id);
         
         if (portfolio == null)
         {
+            _logger.LogWarning("Portfólio não encontrado para PortfolioId={PortfolioId}", id);
             return NotFound(new { message = $"Portfólio com o ID '{id}' não foi encontrado." });
         }
 
         var result = _riskAnalyzer.Analyze(portfolio);
+        _logger.LogDebug("Risk analysis completed for PortfolioId={PortfolioId}", portfolio.Id);
         return Ok(result);
     }
 
@@ -77,14 +95,18 @@ public class PortfoliosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public IActionResult GetRebalancing(string id)
     {
+        _logger.LogDebug("GetRebalancing request received for PortfolioId={PortfolioId}", id);
+
         var portfolio = _context.Portfolios.FirstOrDefault(p => p.Id == id || p.UserId == id);
         
         if (portfolio == null)
         {
+            _logger.LogWarning("Portfólio não encontrado para PortfolioId={PortfolioId}", id);
             return NotFound(new { message = $"Portfólio com o ID '{id}' não foi encontrado." });
         }
 
         var result = _rebalancingOptimizer.Optimize(portfolio);
+        _logger.LogDebug("Rebalancing optimization completed for PortfolioId={PortfolioId}", portfolio.Id);
         return Ok(result);
     }
 }

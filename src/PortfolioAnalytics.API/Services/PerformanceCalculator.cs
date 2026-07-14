@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using PortfolioAnalytics.API.Data;
 using PortfolioAnalytics.API.Models;
 using PortfolioAnalytics.API.Models.DTOs;
@@ -8,15 +9,19 @@ namespace PortfolioAnalytics.API.Services;
 public class PerformanceCalculator : IPerformanceCalculator
 {
     private readonly IDataContext _context;
+    private readonly ILogger<PerformanceCalculator> _logger;
 
-    public PerformanceCalculator(IDataContext context)
+    public PerformanceCalculator(IDataContext context, ILogger<PerformanceCalculator> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     public PerformanceResponse Calculate(Portfolio portfolio)
     {
         if (portfolio == null) throw new ArgumentNullException(nameof(portfolio));
+
+        _logger.LogDebug("Calculating performance for portfolio {PortfolioId}", portfolio.Id);
 
         decimal totalInvestment = portfolio.TotalInvestment;
         decimal currentValue = 0;
@@ -33,6 +38,16 @@ public class PerformanceCalculator : IPerformanceCalculator
             decimal positionReturn = investedAmount > 0
                 ? (positionCurrentValue - investedAmount) / investedAmount * 100
                 : 0;
+
+            _logger.LogDebug(
+                "Position calculation {Symbol}: quantity={Quantity}, averagePrice={AveragePrice}, currentPrice={CurrentPrice}, investedAmount={InvestedAmount}, currentValue={CurrentValue}, returnPct={ReturnPct}",
+                position.AssetSymbol,
+                position.Quantity,
+                position.AveragePrice,
+                currentPrice,
+                investedAmount,
+                positionCurrentValue,
+                positionReturn);
 
             currentValue += positionCurrentValue;
 
@@ -63,6 +78,15 @@ public class PerformanceCalculator : IPerformanceCalculator
 
         decimal? volatility = CalculatePortfolioVolatility(portfolio, positionsPerformance, currentValue);
 
+        _logger.LogInformation(
+            "Performance summary for portfolio {PortfolioId}: totalInvestment={TotalInvestment}, currentValue={CurrentValue}, totalReturnPct={TotalReturnPercent}, annualizedReturn={AnnualizedReturn}, volatility={Volatility}",
+            portfolio.Id,
+            totalInvestment,
+            currentValue,
+            totalReturnPercent,
+            annualizedReturn,
+            volatility);
+
         return new PerformanceResponse
         {
             TotalInvestment = totalInvestment,
@@ -92,6 +116,13 @@ public class PerformanceCalculator : IPerformanceCalculator
 
         double annualized = (Math.Pow(1 + totalReturnDecimal, 365.0 / days) - 1) * 100;
 
+        _logger.LogDebug(
+            "Annualized return calculation for portfolio {PortfolioId}: days={Days}, totalReturnPercent={TotalReturnPercent}, annualized={Annualized}",
+            portfolio.Id,
+            days,
+            totalReturnPercent,
+            annualized);
+
         return (decimal)annualized;
     }
 
@@ -100,7 +131,13 @@ public class PerformanceCalculator : IPerformanceCalculator
         List<PositionPerformanceDto> positions,
         decimal totalPortfolioValue)
     {
-        if (totalPortfolioValue <= 0) return null;
+        if (totalPortfolioValue <= 0)
+        {
+            _logger.LogWarning("Cannot calculate volatility because total portfolio value is not positive for portfolio {PortfolioId}", portfolio.Id);
+            return null;
+        }
+
+        _logger.LogDebug("Starting volatility calculation for portfolio {PortfolioId} with totalValue={TotalPortfolioValue}", portfolio.Id, totalPortfolioValue);
 
         var assetVolatilities = new List<(decimal Weight, List<decimal> DailyReturns)>();
 
@@ -113,6 +150,10 @@ public class PerformanceCalculator : IPerformanceCalculator
 
             if (!normalizedHistory.TryGetValue(symbolUpper, out var history) || history.Count < 2)
             {
+                _logger.LogWarning(
+                    "Price history missing or too short for asset {AssetSymbol} while calculating volatility for portfolio {PortfolioId}",
+                    pos.Symbol,
+                    portfolio.Id);
                 return null;
             }
 
@@ -132,6 +173,12 @@ public class PerformanceCalculator : IPerformanceCalculator
             }
 
             decimal weight = pos.CurrentValue / totalPortfolioValue;
+            _logger.LogDebug(
+                "Volatility asset {AssetSymbol}: weight={Weight}, dailyReturnsCount={DailyReturnsCount}",
+                pos.Symbol,
+                weight,
+                dailyReturns.Count);
+
             assetVolatilities.Add((weight, dailyReturns));
         }
 
@@ -148,7 +195,11 @@ public class PerformanceCalculator : IPerformanceCalculator
             portfolioDailyReturns.Add(portfolioDailyReturn);
         }
 
-        if (portfolioDailyReturns.Count < 2) return null;
+        if (portfolioDailyReturns.Count < 2)
+        {
+            _logger.LogWarning("Insufficient daily returns for portfolio volatility calculation for portfolio {PortfolioId}", portfolio.Id);
+            return null;
+        }
 
         decimal averageReturn = portfolioDailyReturns.Average();
         double sumOfSquares = portfolioDailyReturns

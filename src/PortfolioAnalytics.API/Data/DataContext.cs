@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using PortfolioAnalytics.API.Models;
 using PortfolioAnalytics.API.Models.DTOs;
 
@@ -14,13 +15,16 @@ public interface IDataContext
 
 public class DataContext : IDataContext
 {
+    private readonly ILogger<DataContext> _logger;
+
     public List<Asset> Assets { get; private set; } = [];
     public List<Portfolio> Portfolios { get; private set; } = [];
     public Dictionary<string, List<PriceHistory>> PriceHistory { get; private set; } = [];
     public decimal SelicRate { get; private set; }
 
-    public DataContext()
+    public DataContext(ILogger<DataContext> logger)
     {
+        _logger = logger;
         LoadSeedData();
     }
 
@@ -61,6 +65,8 @@ public class DataContext : IDataContext
             throw new FileNotFoundException($"O arquivo SeedData.json não foi encontrado em nenhuma das tentativas. Último caminho verificado: {jsonPath}");
         }
 
+        _logger.LogInformation("Loading seed data from {SeedDataPath}", jsonPath);
+
         var jsonString = File.ReadAllText(jsonPath);
         var options = new JsonSerializerOptions
         {
@@ -83,6 +89,13 @@ public class DataContext : IDataContext
                     portfolio.Id = portfolio.UserId;
                 }
             }
+
+            _logger.LogInformation(
+                "Seed data loaded: {AssetsCount} assets, {PortfoliosCount} portfolios, {PriceHistoryCount} histories, SelicRate={SelicRate}",
+                Assets?.Count ?? 0,
+                Portfolios?.Count ?? 0,
+                PriceHistory?.Count ?? 0,
+                SelicRate);
         }
     }
 }

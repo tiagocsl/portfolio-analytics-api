@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using PortfolioAnalytics.API.Data;
 using PortfolioAnalytics.API.Models;
 using PortfolioAnalytics.API.Models.DTOs;
@@ -7,15 +8,19 @@ namespace PortfolioAnalytics.API.Services;
 public class RebalancingOptimizer : IRebalancingOptimizer
 {
     private readonly IDataContext _context;
+    private readonly ILogger<RebalancingOptimizer> _logger;
 
-    public RebalancingOptimizer(IDataContext context)
+    public RebalancingOptimizer(IDataContext context, ILogger<RebalancingOptimizer> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     public RebalancingResponse Optimize(Portfolio portfolio)
     {
         if (portfolio == null) throw new ArgumentNullException(nameof(portfolio));
+
+        _logger.LogDebug("Starting rebalancing optimization for portfolio {PortfolioId}", portfolio.Id);
 
         var response = new RebalancingResponse();
         var instructions = new List<RebalancingInstructionDto>();
@@ -28,7 +33,11 @@ public class RebalancingOptimizer : IRebalancingOptimizer
         foreach (var position in portfolio.Positions)
         {
             var asset = _context.Assets.FirstOrDefault(a => a.Symbol.ToUpperInvariant() == position.AssetSymbol.ToUpperInvariant());
-            if (asset == null) continue;
+            if (asset == null)
+            {
+                _logger.LogWarning("Asset not found for position {AssetSymbol} in portfolio {PortfolioId}", position.AssetSymbol, portfolio.Id);
+                continue;
+            }
 
             decimal posValue = position.Quantity * asset.CurrentPrice;
             totalValue += posValue;
@@ -38,8 +47,11 @@ public class RebalancingOptimizer : IRebalancingOptimizer
 
         response.TotalValue = Math.Round(totalValue, 2);
 
+        _logger.LogDebug("Total portfolio value for rebalancing {PortfolioId} = {TotalValue}, activePositions={ActiveCount}", portfolio.Id, response.TotalValue, activePositions.Count);
+
         if (totalValue <= 0 || !activePositions.Any())
         {
+            _logger.LogWarning("Rebalancing optimization aborted because portfolio {PortfolioId} is empty or has no active positions.", portfolio.Id);
             return response; // Carteira vazia ou sem valor atual
         }
 
@@ -52,6 +64,8 @@ public class RebalancingOptimizer : IRebalancingOptimizer
 
         // Tolerância para pequenas variações de arredondamento (ex: de 0.9999 a 1.0001)
         bool needsNormalization = Math.Abs(totalTargetAllocation - 1.0m) > 0.001m;
+
+        _logger.LogDebug("Target allocation sum for portfolio {PortfolioId} = {TargetSum}, needsNormalization={NeedsNormalization}", portfolio.Id, totalTargetAllocation, needsNormalization);
 
         foreach (var item in activePositions)
         {
@@ -80,6 +94,15 @@ public class RebalancingOptimizer : IRebalancingOptimizer
             decimal currentAllocationPercentage = (item.CurrentValue / totalValue) * 100;
             decimal deviation = currentAllocationPercentage - targetAllocationPercentage;
 
+            _logger.LogDebug(
+                "Allocation analysis for asset {AssetSymbol}: currentAllocation={CurrentAllocation}, targetAllocation={TargetAllocation}, deviation={Deviation}, currentValue={CurrentValue}, targetValue={TargetValue}",
+                item.Position.AssetSymbol,
+                currentAllocationPercentage,
+                targetAllocationPercentage,
+                deviation,
+                item.CurrentValue,
+                totalValue * targetAllocationDecimal);
+
             allocations.Add(new AssetAllocationDto
             {
                 AssetSymbol = item.Position.AssetSymbol,
@@ -100,6 +123,15 @@ public class RebalancingOptimizer : IRebalancingOptimizer
                 if (quantity > 0)
                 {
                     string action = differenceValue > 0 ? "BUY" : "SELL";
+                    decimal estimatedCost = Math.Round(quantity * currentPrice, 2);
+
+                    _logger.LogDebug(
+                        "Rebalancing instruction for asset {AssetSymbol}: action={Action}, quantity={Quantity}, price={Price}, estimatedCost={EstimatedCost}",
+                        item.Position.AssetSymbol,
+                        action,
+                        quantity,
+                        currentPrice,
+                        estimatedCost);
 
                     instructions.Add(new RebalancingInstructionDto
                     {
@@ -107,7 +139,7 @@ public class RebalancingOptimizer : IRebalancingOptimizer
                         Action = action,
                         Quantity = quantity,
                         Price = currentPrice,
-                        EstimatedCost = Math.Round(quantity * currentPrice, 2)
+                        EstimatedCost = estimatedCost
                     });
                 }
             }
@@ -115,6 +147,8 @@ public class RebalancingOptimizer : IRebalancingOptimizer
 
         response.CurrentVsTargetAllocation = allocations.OrderByDescending(a => a.Deviation).ToList();
         response.Instructions = instructions.OrderByDescending(i => i.EstimatedCost).ToList();
+
+        _logger.LogInformation("Rebalancing optimization completed for portfolio {PortfolioId}: allocations={AllocationCount}, instructions={InstructionCount}", portfolio.Id, response.CurrentVsTargetAllocation.Count, response.Instructions.Count);
 
         return response;
     }
