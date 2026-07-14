@@ -1,0 +1,77 @@
+using Xunit;
+using System.Linq;
+using System.Collections.Generic;
+
+using PortfolioAnalytics.API.Data;
+using PortfolioAnalytics.API.Services;
+using PortfolioAnalytics.API.Models;
+
+namespace PortfolioAnalytics.Tests.ServicesTests;
+
+public class RebalancingOptimizerTests
+{
+    private readonly IDataContext _context;
+    private readonly IRebalancingOptimizer _optimizer;
+
+    public RebalancingOptimizerTests()
+    {
+        _context = new DataContext();
+        _optimizer = new RebalancingOptimizer(_context);
+    }
+
+    [Fact]
+    public void Optimize_ShouldGenerateInstructions_WhenPortfolioIsUnbalanced()
+    {
+        var portfolio = _context.Portfolios.FirstOrDefault(p => p.UserId == "user-003");
+        Assert.NotNull(portfolio);
+
+        var result = _optimizer.Optimize(portfolio);
+
+        Assert.NotNull(result);
+        Assert.True(result.TotalValue > 0);
+        Assert.NotEmpty(result.CurrentVsTargetAllocation);
+
+        foreach (var inst in result.Instructions)
+        {
+            Assert.Contains(inst.Action, new[] { "BUY", "SELL" });
+            Assert.True(inst.Quantity > 0);
+            Assert.Equal(inst.Quantity * inst.Price, inst.EstimatedCost);
+        }
+    }
+
+    [Fact]
+    public void Optimize_ShouldNotGenerateInstructions_WhenPortfolioIsPerfectedBalanced()
+    {
+        var mockContext = new MockDataContext();
+        mockContext.Assets.Add(new Asset { Symbol = "BALANCED", CurrentPrice = 100m });
+
+        var portfolio = new Portfolio
+        {
+            Id = "test-balanced",
+            UserId = "test-user-balanced",
+            TotalInvestment = 1000m,
+            Positions = new List<Position>
+            {
+                new Position { AssetSymbol = "BALANCED", Quantity = 10, AveragePrice = 100m, TargetAllocation = 1.0m }
+            }
+        };
+
+        var optimizerWithMock = new RebalancingOptimizer(mockContext);
+
+        var result = optimizerWithMock.Optimize(portfolio);
+
+        Assert.Empty(result.Instructions);
+        var allocation = result.CurrentVsTargetAllocation.First();
+        Assert.Equal(100m, allocation.CurrentAllocation);
+        Assert.Equal(100m, allocation.TargetAllocation);
+        Assert.Equal(0m, allocation.Deviation);
+    }
+
+    private class MockDataContext : IDataContext
+    {
+        public List<Asset> Assets { get; } = new();
+        public List<Portfolio> Portfolios { get; } = new();
+        public Dictionary<string, List<PriceHistory>> PriceHistory { get; } = new();
+        public decimal SelicRate => 10.75m;
+    }
+}

@@ -12,6 +12,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<IDataContext, DataContext>();
 builder.Services.AddTransient<IPerformanceCalculator, PerformanceCalculator>();
 builder.Services.AddTransient<IRiskAnalyzer, RiskAnalyzer>();
+builder.Services.AddTransient<IRebalancingOptimizer, RebalancingOptimizer>();
 
 var app = builder.Build();
 
