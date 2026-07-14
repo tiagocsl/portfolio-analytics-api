@@ -1,4 +1,7 @@
 using PortfolioAnalytics.API.Data;
+using PortfolioAnalytics.API.Services;
+using PortfolioAnalytics.API.Services.Interfaces;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +10,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddSingleton<IDataContext, DataContext>();
+builder.Services.AddTransient<IPerformanceCalculator, PerformanceCalculator>();
 
 var app = builder.Build();
 
