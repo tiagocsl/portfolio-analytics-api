@@ -1,6 +1,7 @@
 using Xunit;
 using System.Linq;
 using System.Collections.Generic;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using PortfolioAnalytics.API.Data;
 using PortfolioAnalytics.API.Services;
@@ -15,8 +16,8 @@ public class RebalancingOptimizerTests
 
     public RebalancingOptimizerTests()
     {
-        _context = new DataContext();
-        _optimizer = new RebalancingOptimizer(_context);
+        _context = new DataContext(NullLogger<DataContext>.Instance);
+        _optimizer = new RebalancingOptimizer(_context, NullLogger<RebalancingOptimizer>.Instance);
     }
 
     [Fact]
@@ -56,7 +57,7 @@ public class RebalancingOptimizerTests
             }
         };
 
-        var optimizerWithMock = new RebalancingOptimizer(mockContext);
+        var optimizerWithMock = new RebalancingOptimizer(mockContext, NullLogger<RebalancingOptimizer>.Instance);
 
         var result = optimizerWithMock.Optimize(portfolio);
 
@@ -96,7 +97,7 @@ public class RebalancingOptimizerTests
             }
         };
 
-        var optimizerWithMock = new RebalancingOptimizer(mockContext);
+        var optimizerWithMock = new RebalancingOptimizer(mockContext, NullLogger<RebalancingOptimizer>.Instance);
 
         var result = optimizerWithMock.Optimize(portfolio);
 
@@ -122,7 +123,7 @@ public class RebalancingOptimizerTests
             }
         };
 
-        var optimizerWithMock = new RebalancingOptimizer(mockContext);
+        var optimizerWithMock = new RebalancingOptimizer(mockContext, NullLogger<RebalancingOptimizer>.Instance);
 
         var result = optimizerWithMock.Optimize(portfolio);
 
@@ -150,7 +151,7 @@ public class RebalancingOptimizerTests
             }
         };
 
-        var optimizerWithMock = new RebalancingOptimizer(mockContext);
+        var optimizerWithMock = new RebalancingOptimizer(mockContext, NullLogger<RebalancingOptimizer>.Instance);
 
         var result = optimizerWithMock.Optimize(portfolio);
 

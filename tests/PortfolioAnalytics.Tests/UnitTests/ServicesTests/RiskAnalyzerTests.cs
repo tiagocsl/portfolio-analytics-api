@@ -1,6 +1,7 @@
 using Xunit;
 using System.Linq;
 using System.Collections.Generic;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using PortfolioAnalytics.API.Data;
 using PortfolioAnalytics.API.Services;
@@ -15,8 +16,8 @@ public class RiskAnalyzerTests
 
     public RiskAnalyzerTests()
     {
-        _context = new DataContext();
-        _analyzer = new RiskAnalyzer(_context);
+        _context = new DataContext(NullLogger<DataContext>.Instance);
+        _analyzer = new RiskAnalyzer(_context, NullLogger<RiskAnalyzer>.Instance);
     }
 
     [Fact]
@@ -55,7 +56,7 @@ public class RiskAnalyzerTests
             }
         };
 
-        var analyzerWithMock = new RiskAnalyzer(mockContext);
+        var analyzerWithMock = new RiskAnalyzer(mockContext, NullLogger<RiskAnalyzer>.Instance);
 
         var result = analyzerWithMock.Analyze(portfolio);
 
@@ -83,7 +84,7 @@ public class RiskAnalyzerTests
             Positions = new List<Position>()
         };
 
-        var analyzerWithMock = new RiskAnalyzer(mockContext);
+        var analyzerWithMock = new RiskAnalyzer(mockContext, NullLogger<RiskAnalyzer>.Instance);
 
         var result = analyzerWithMock.Analyze(emptyPortfolio);
 
@@ -109,7 +110,7 @@ public class RiskAnalyzerTests
             }
         };
 
-        var analyzerWithMock = new RiskAnalyzer(mockContext);
+        var analyzerWithMock = new RiskAnalyzer(mockContext, NullLogger<RiskAnalyzer>.Instance);
 
         var result = analyzerWithMock.Analyze(portfolio);
 
@@ -139,7 +140,7 @@ public class RiskAnalyzerTests
             Positions = positions
         };
 
-        var analyzerWithMock = new RiskAnalyzer(mockContext);
+        var analyzerWithMock = new RiskAnalyzer(mockContext, NullLogger<RiskAnalyzer>.Instance);
 
         var result = analyzerWithMock.Analyze(diversifiedPortfolio);
 

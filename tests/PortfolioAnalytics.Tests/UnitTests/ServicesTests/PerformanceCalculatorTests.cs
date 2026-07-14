@@ -1,6 +1,7 @@
 using Xunit;
 using System.Linq;
 using System.Collections.Generic;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using PortfolioAnalytics.API.Data;
 using PortfolioAnalytics.API.Models;
@@ -16,8 +17,8 @@ public class PerformanceCalculatorTests
 
     public PerformanceCalculatorTests()
     {
-        _context = new DataContext();
-        _calculator = new PerformanceCalculator(_context);
+        _context = new DataContext(NullLogger<DataContext>.Instance);
+        _calculator = new PerformanceCalculator(_context, NullLogger<PerformanceCalculator>.Instance);
     }
 
     [Fact]
@@ -67,7 +68,7 @@ public class PerformanceCalculatorTests
             }
         };
 
-        var calculatorWithMock = new PerformanceCalculator(mockContext);
+        var calculatorWithMock = new PerformanceCalculator(mockContext, NullLogger<PerformanceCalculator>.Instance);
 
         var result = calculatorWithMock.Calculate(portfolio);
 
@@ -103,7 +104,7 @@ public class PerformanceCalculatorTests
             }
         };
 
-        var calculatorWithMock = new PerformanceCalculator(mockContext);
+        var calculatorWithMock = new PerformanceCalculator(mockContext, NullLogger<PerformanceCalculator>.Instance);
 
         var result = calculatorWithMock.Calculate(portfolio);
 
@@ -127,7 +128,7 @@ public class PerformanceCalculatorTests
             Positions = new List<Position>() // Sem posições ativas
         };
 
-        var calculatorWithMock = new PerformanceCalculator(mockContext);
+        var calculatorWithMock = new PerformanceCalculator(mockContext, NullLogger<PerformanceCalculator>.Instance);
         var result = calculatorWithMock.Calculate(emptyPortfolio);
 
         Assert.Null(result.AnnualizedReturn); // Agora retornará Null perfeitamente!
@@ -161,7 +162,7 @@ public class PerformanceCalculatorTests
             }
         };
 
-        var calculatorWithMock = new PerformanceCalculator(mockContext);
+        var calculatorWithMock = new PerformanceCalculator(mockContext, NullLogger<PerformanceCalculator>.Instance);
 
         // Act
         var result = calculatorWithMock.Calculate(portfolio);
@@ -202,7 +203,7 @@ public class PerformanceCalculatorTests
             }
         };
 
-        var calculatorWithMock = new PerformanceCalculator(mockContext);
+        var calculatorWithMock = new PerformanceCalculator(mockContext, NullLogger<PerformanceCalculator>.Instance);
 
         // Act
         var result = calculatorWithMock.Calculate(portfolio);
@@ -232,7 +233,7 @@ public class PerformanceCalculatorTests
             }
         };
 
-        var calculatorWithMock = new PerformanceCalculator(mockContext);
+        var calculatorWithMock = new PerformanceCalculator(mockContext, NullLogger<PerformanceCalculator>.Instance);
         var result = calculatorWithMock.Calculate(portfolio);
 
         // Como o cálculo fixo de datas retorna um valor válido por padrão (~265 dias),
@@ -266,7 +267,7 @@ public class PerformanceCalculatorTests
             }
         };
 
-        var calculatorWithMock = new PerformanceCalculator(mockContext);
+        var calculatorWithMock = new PerformanceCalculator(mockContext, NullLogger<PerformanceCalculator>.Instance);
         var result = calculatorWithMock.Calculate(portfolio);
 
         Assert.Null(result.Volatility);
