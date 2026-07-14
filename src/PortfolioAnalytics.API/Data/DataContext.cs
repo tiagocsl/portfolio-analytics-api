@@ -36,19 +36,29 @@ public class DataContext : IDataContext
         if (!File.Exists(jsonPath))
         {
             var directory = new DirectoryInfo(AppContext.BaseDirectory);
-            while (directory != null && !File.Exists(Path.Combine(directory.FullName, "SeedData.json")))
+            while (directory != null)
             {
+                var tempPath = Path.Combine(directory.FullName, "SeedData.json");
+                if (File.Exists(tempPath))
+                {
+                    jsonPath = tempPath;
+                    break;
+                }
+
+                var apiSubPath = Path.Combine(directory.FullName, "src", "PortfolioAnalytics.API", "SeedData.json");
+                if (File.Exists(apiSubPath))
+                {
+                    jsonPath = apiSubPath;
+                    break;
+                }
+
                 directory = directory.Parent;
-            }
-            if (directory != null)
-            {
-                jsonPath = Path.Combine(directory.FullName, "SeedData.json");
             }
         }
 
         if (!File.Exists(jsonPath))
         {
-            throw new FileNotFoundException($"O arquivo SeedData.json não foi encontrado. Caminho verificado: {jsonPath}");
+            throw new FileNotFoundException($"O arquivo SeedData.json não foi encontrado em nenhuma das tentativas. Último caminho verificado: {jsonPath}");
         }
 
         var jsonString = File.ReadAllText(jsonPath);
@@ -65,7 +75,7 @@ public class DataContext : IDataContext
             Portfolios = wrapper.Portfolios;
             PriceHistory = wrapper.PriceHistory;
             SelicRate = wrapper.MarketData.SelicRate;
-            
+
             foreach (var portfolio in Portfolios)
             {
                 if (string.IsNullOrEmpty(portfolio.Id))

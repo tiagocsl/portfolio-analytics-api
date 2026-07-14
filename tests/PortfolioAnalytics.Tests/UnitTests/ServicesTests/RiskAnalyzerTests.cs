@@ -1,9 +1,10 @@
 using Xunit;
+using System.Linq;
+using System.Collections.Generic;
+
 using PortfolioAnalytics.API.Data;
 using PortfolioAnalytics.API.Services;
 using PortfolioAnalytics.API.Models;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace PortfolioAnalytics.Tests.ServicesTests;
 
