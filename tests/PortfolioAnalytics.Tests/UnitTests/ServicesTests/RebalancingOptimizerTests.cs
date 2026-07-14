@@ -131,6 +131,41 @@ public class RebalancingOptimizerTests
         Assert.Empty(result.Instructions);
     }
 
+    [Fact]
+    public void Optimize_ShouldNormalizeTargetAllocation_WhenSumIsNotOneHundredPercent()
+    {
+        var mockContext = new MockDataContext();
+        mockContext.Assets.Add(new Asset { Symbol = "A", CurrentPrice = 100m });
+        mockContext.Assets.Add(new Asset { Symbol = "B", CurrentPrice = 100m });
+
+        var portfolio = new Portfolio
+        {
+            Id = "unbalanced-targets",
+            UserId = "user-unbalanced-targets",
+            TotalInvestment = 1000m,
+            Positions = new List<Position>
+            {
+                new Position { AssetSymbol = "A", Quantity = 5, AveragePrice = 100m, TargetAllocation = 0.40m },
+                new Position { AssetSymbol = "B", Quantity = 5, AveragePrice = 100m, TargetAllocation = 0.40m }
+            }
+        };
+
+        var optimizerWithMock = new RebalancingOptimizer(mockContext);
+
+        var result = optimizerWithMock.Optimize(portfolio);
+
+        Assert.NotNull(result);
+
+        Assert.Empty(result.Instructions);
+
+        foreach (var allocation in result.CurrentVsTargetAllocation)
+        {
+            Assert.Equal(50m, allocation.TargetAllocation);
+            Assert.Equal(50m, allocation.CurrentAllocation);
+            Assert.Equal(0m, allocation.Deviation);
+        }
+    }
+
     private class MockDataContext : IDataContext
     {
         public List<Asset> Assets { get; } = new();

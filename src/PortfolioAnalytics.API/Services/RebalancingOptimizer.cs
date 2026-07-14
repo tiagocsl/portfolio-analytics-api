@@ -21,12 +21,13 @@ public class RebalancingOptimizer : IRebalancingOptimizer
         var instructions = new List<RebalancingInstructionDto>();
         var allocations = new List<AssetAllocationDto>();
 
+        // 1. Calcular o Valor Atual de cada posição e o total da carteira
         decimal totalValue = 0;
         var activePositions = new List<(Position Position, Asset Asset, decimal CurrentValue)>();
 
         foreach (var position in portfolio.Positions)
         {
-            var asset = _context.Assets.FirstOrDefault(a => a.Symbol == position.AssetSymbol);
+            var asset = _context.Assets.FirstOrDefault(a => a.Symbol.ToUpperInvariant() == position.AssetSymbol.ToUpperInvariant());
             if (asset == null) continue;
 
             decimal posValue = position.Quantity * asset.CurrentPrice;
@@ -37,16 +38,43 @@ public class RebalancingOptimizer : IRebalancingOptimizer
 
         response.TotalValue = Math.Round(totalValue, 2);
 
-        if (totalValue <= 0)
+        if (totalValue <= 0 || !activePositions.Any())
         {
-            return response; 
+            return response; // Carteira vazia ou sem valor atual
         }
+
+        // 2. Mitigação: Validar e Normalizar o TargetAllocation
+        // Se a soma das metas for diferente de 1.0 (100%), normalizamos proporcionalmente.
+        decimal totalTargetAllocation = activePositions.Sum(p => p.Position.TargetAllocation);
+        
+        // Usamos um dicionário para guardar as metas normalizadas temporariamente
+        var normalizedTargets = new Dictionary<string, decimal>();
+
+        // Tolerância para pequenas variações de arredondamento (ex: de 0.9999 a 1.0001)
+        bool needsNormalization = Math.Abs(totalTargetAllocation - 1.0m) > 0.001m;
 
         foreach (var item in activePositions)
         {
+            decimal originalTarget = item.Position.TargetAllocation;
+            decimal normalizedTarget = originalTarget;
+
+            if (needsNormalization && totalTargetAllocation > 0)
+            {
+                // Ex: Se o ativo tem meta de 20% em uma carteira cuja soma é 80%:
+                // Novo Target = 0.20 / 0.80 = 0.25 (25%)
+                normalizedTarget = originalTarget / totalTargetAllocation;
+            }
+
+            normalizedTargets[item.Position.AssetSymbol.ToUpperInvariant()] = normalizedTarget;
+        }
+
+        // 3. Analisar desvios e formular sugestões de rebalanceamento
+        foreach (var item in activePositions)
+        {
             decimal currentPrice = item.Asset.CurrentPrice;
+            string symbolUpper = item.Position.AssetSymbol.ToUpperInvariant();
             
-            decimal targetAllocationDecimal = item.Position.TargetAllocation; 
+            decimal targetAllocationDecimal = normalizedTargets[symbolUpper]; 
             decimal targetAllocationPercentage = targetAllocationDecimal * 100;
 
             decimal currentAllocationPercentage = (item.CurrentValue / totalValue) * 100;
@@ -60,9 +88,11 @@ public class RebalancingOptimizer : IRebalancingOptimizer
                 Deviation = Math.Round(deviation, 2)
             });
 
+            // Valor ideal que o ativo deveria ter na carteira após normalização das metas
             decimal targetValue = totalValue * targetAllocationDecimal;
             decimal differenceValue = targetValue - item.CurrentValue;
 
+            // Se a diferença de alocação exigir uma movimentação financeira maior ou igual ao preço de 1 cota:
             if (Math.Abs(differenceValue) >= currentPrice)
             {
                 int quantity = (int)Math.Round(Math.Abs(differenceValue) / currentPrice, MidpointRounding.AwayFromZero);
